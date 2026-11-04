@@ -171,6 +171,15 @@ export default {
   async fetch(request,env,ctx) {
     const u=new URL(request.url);
     if(u.pathname==="/qx.js") return new Response(qxJs,{headers:{"content-type":"application/javascript; charset=utf-8","cache-control":"public,max-age=3600","x-content-type-options":"nosniff"}});
+    if(u.pathname==="/diagnostics"){
+      try {
+        const [meta,raw] = await Promise.all([
+          fetch(UPSTREAM+"/"+DB[4],{headers:{"accept":"application/vnd.github+json","user-agent":"qx-ip2region-worker"}}),
+          fetch(RAW+"/master/data/"+DB[4],{method:"HEAD",headers:{"user-agent":"qx-ip2region-worker"}})
+        ]);
+        return json({metaStatus:meta.status,metaSample:(await meta.text()).slice(0,300),rawStatus:raw.status,rawSize:raw.headers.get("content-length"),rawType:raw.headers.get("content-type")});
+      } catch(e){return json({error:String(e)},500);}
+    }
     if(u.pathname==="/health"){
       const m=await manifest(env);
       return json({ok:!!m,initialized:!!m,updatedAt:m?.updatedAt||null,versions:m?{v4:m.v4.sha,v6:m.v6.sha}:null},m?200:503);
