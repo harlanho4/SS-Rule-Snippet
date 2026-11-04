@@ -1,40 +1,38 @@
-name: Bootstrap ip2region Worker database
+name: Verify Quantumult X ip2region GeoIP
 on:
   workflow_dispatch:
   push:
     paths:
       - ".github/workflows/qx-ip2region-bootstrap.yml"
+  schedule:
+    - cron: "30 3 * * 1"
 
 permissions:
   contents: read
 
 concurrency:
-  group: qx-ip2region-diagnostics
+  group: qx-ip2region-smoke
   cancel-in-progress: true
 
 jobs:
-  bootstrap:
+  smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 5
     steps:
-      - name: Check upstream access
-        run: |
-          curl --fail --show-error --silent https://qx-ip2region.haonan-h6709.workers.dev/diagnostics
-      - name: Start initial XDB synchronization
+      - name: Check database manifest and both IP versions
         run: |
           set -euo pipefail
-          curl --fail --show-error --silent --retry 3 \
-            https://qx-ip2region.haonan-h6709.workers.dev/bootstrap
-      - name: Wait for verified IPv4 and IPv6 release
+          curl -fsS --retry 3 https://qx-ip2region.haonan-h6709.workers.dev/health \
+            | tee /tmp/health.json \
+            | jq -e '.ok == true and .initialized == true and (.versions.v4 | length) == 40 and (.versions.v6 | length) == 40'
+      - name: Check real IPv4/IPv6 client lookup
         run: |
           set -euo pipefail
-          for i in $(seq 1 2); do
-            if curl --fail --show-error --silent \
-              https://qx-ip2region.haonan-h6709.workers.dev/health \
-              | jq -e '.initialized == true and .versions.v4 != null and .versions.v6 != null'; then
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "Initial database update incomplete. Inspect Worker logs and R2." >&2
-          exit 1
+          curl -fsS --retry 3 https://qx-ip2region.haonan-h6709.workers.dev/geo \
+            | tee /tmp/geo.json \
+            | jq -e '.status == "success" and (.query | length) > 0 and (.country | length) > 0'
+      - name: Check Quantumult X display script
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 https://qx-ip2region.haonan-h6709.workers.dev/qx.js \
+            | grep -Fq '$done'
