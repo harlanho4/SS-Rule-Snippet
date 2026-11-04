@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
+      - name: Check upstream access
+        run: |
+          curl --fail --show-error --silent https://qx-ip2region.haonan-h6709.workers.dev/diagnostics
       - name: Start initial XDB synchronization
         run: |
           set -euo pipefail
